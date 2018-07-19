@@ -409,6 +409,6 @@ function update(){
 
 setInterval(update,1000/60);
 
-server.listen( process.env.port || 4000, ()=>{
+server.listen( process.env.PORT || 4000, ()=>{
     console.log('Listening on port ' + (process.env.port || 4000) )
 } );
