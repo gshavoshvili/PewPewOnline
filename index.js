@@ -46,21 +46,25 @@ class Projectile {
             p2          p3
     */      
 
-    constructor(p1,p2,p3,p4,angleRadians){
+    constructor(p1,p2,p3,p4,angleRadians,ship){
         this.p1 = p1;
         this.p2 = p2;
         this.p3 = p3;
         this.p4 = p4;
         this.angleRadians = angleRadians;
         this.stop=false;
-        
+        this.ship=ship;
+        this.timeout = setTimeout(()=>{
+            //console.log('time');
+            this.delete(ship);
+        },5000);
     }
 
     delete(ship) {
-        console.log(ship);
         ship.projectiles.splice(
             ship.projectiles.indexOf(this),1
         );
+        clearTimeout(this.timeout);
     }
 
 
@@ -141,7 +145,6 @@ class Ship {
             this.socket.emit('dead');
         }
         
-        console.log(this.hp);
         
     }
 
@@ -174,7 +177,7 @@ app.use(express.static('public'));
 
 
 // Socket setup
-var io = socket(server);
+var io = socket(server,{transports:['websocket']});
 
 io.on('connection', (socket)=>{
     console.log(socket.id + " connected!");
@@ -279,11 +282,9 @@ function shoot(ship){
             ship.pos.center.x + distVector.x + p4Vect.x,
             ship.pos.center.y + distVector.y + p4Vect.y
         )
-        let proj = new Projectile(p1,p2,p3,p4,ship.angleRadians)
+        let proj = new Projectile(p1,p2,p3,p4,ship.angleRadians,ship)
         ship.projectiles.push(proj);
-        setTimeout(()=>{
-            proj.delete(ship);
-        },5000);
+       
         
         ship.canShoot = false;
         setTimeout(()=>{
@@ -306,7 +307,7 @@ function isCollisionSAT (poly1, poly2) {
     normals.push(poly2.p1.subtract(poly2.p3).normal());
 
 
-    io.emit('normals', normals);
+    //io.emit('normals', normals);
 
     for (let i = 0; i<normals.length; i++){
         normal = normals[i];
@@ -379,7 +380,6 @@ function update(){
                     let otherShip = ships[i];
                     if (isCollisionSAT(proj, otherShip.pos)) {
                         //proj.stop = true; 
-                        //console.log(ships.indexOf(ship));
                         proj.delete(ship);
                         otherShip.damage();
                         break;
@@ -389,22 +389,29 @@ function update(){
             
         });
 
-        // not all data from ships should be sent
-        // only take what's necessary
-        let toSend = [];
-        ships.forEach((ship)=>{
-            let sending = {
-            pos: ship.pos,
-            projectiles:ship.projectiles,
-            color: ship.color
-            }
-            toSend.push(sending);
-
-
-        });
-        io.emit('update', toSend);
+        
     })
+    // not all data from ships should be sent
+    // only take what's necessary
+    let toSend = [];
+    ships.forEach((ship)=>{
+        let sending = {
+        pos: ship.pos,
+        projectiles:ship.projectiles.map((proj)=>{
+            return {
+                p1: proj.p1,
+                p2: proj.p2,
+                p3: proj.p3,
+                p4: proj.p4
+            }
+        }),
+        color: ship.color
+        }
+        toSend.push(sending);
 
+
+    });
+    io.emit('update', toSend);
 }
 
 setInterval(update,1000/60);
