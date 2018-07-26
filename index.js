@@ -279,7 +279,7 @@ io.on('connection', (socket)=>{
 
     socket.on('disconnect', () => {
         ship.delete();
-      });
+      }); 
 }) 
 
 function calculateAngle(ship) {
@@ -458,18 +458,38 @@ var ups=[];
 var actualTicks = 0
 
 function gameLoop() {
-   // performance
-     now = performance.now();
-
-     var delta = (now - previousTick)/1000;
-     var currUps = 1/delta;
-     ups.push(currUps);
-     if (ups.length === 600) {
-        console.log('avg ups', ups.reduce((a,b)=>{return a+=b}) / ups.length);
-        ups=[];
-     }
-     previousTick = now
-    update()
+  
+   //setTimeout(gameLoop,tickLength);
+     
+   now = performance.now();
+   var delta = (now - previousTick);
+   var currUps = 1/delta;
+    
+   
+   if (delta >= tickLength) {
+    previousTick = now
+    ups.push(currUps*1000);
+    if (ups.length === 600) {
+       console.log('avg ups', ups.reduce((a,b)=>{return a+=b}) / ups.length);
+       ups=[];
+    }
+       update();
+   }  
+   
+    if ( performance.now() - previousTick < tickLength-4 )
+    {setTimeout(gameLoop);}
+    
+    else {
+        setImmediate(gameLoop);
+    }
+   
+    
+     
+     //now = performance.now();
+    //update()
+     // performance
+    
+     //console.log(performance.now()-now);
     //console.log(performance.now() - now);
      /*imperfections.push((delta-tickLength));
      if (imperfections.length === 600) {
@@ -486,7 +506,7 @@ function gameLoop() {
 
 }
 
-setInterval(gameLoop,tickLength);
+setImmediate(gameLoop);
 
 server.listen( process.env.PORT || 4000, ()=>{
     console.log('Listening on port ' + (process.env.port || 4000) )
