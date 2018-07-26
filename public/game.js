@@ -41,6 +41,7 @@ document.addEventListener('keyup', (e)=>{
     }
 });
 
+
 canvas.addEventListener('mousemove', (e)=>{
     socket.emit('mouseMove', {x: e.offsetX, y: e.offsetY});
 });
@@ -56,30 +57,48 @@ function drawShip(ship){
     
         ctx.fillStyle = ship.color;
         ctx.beginPath();
-        ctx.moveTo(ship.pos.p1.x, ship.pos.p1.y);
-        ctx.lineTo(ship.pos.p2.x, ship.pos.p2.y);
-        ctx.lineTo(ship.pos.p3.x, ship.pos.p3.y);
+        ctx.moveTo(ship.vertices[0].x, ship.vertices[0].y);
+        ctx.lineTo(ship.vertices[1].x, ship.vertices[1].y);
+        ctx.lineTo(ship.vertices[2].x, ship.vertices[2].y);
         ctx.fill();
     
 }
 
 function drawProjectiles(ship){
-    ctx.fillStyle="red";
+    
     ship.projectiles.forEach((proj)=>{
+        ctx.fillStyle=ship.color;
         ctx.beginPath();
-        ctx.moveTo(proj.p1.x, proj.p1.y);
-        ctx.lineTo(proj.p2.x, proj.p2.y);
-        ctx.lineTo(proj.p3.x, proj.p3.y);
-        ctx.lineTo(proj.p4.x, proj.p4.y);
+        ctx.moveTo(proj.vertices[0].x, proj.vertices[0].y);
+        ctx.lineTo(proj.vertices[1].x, proj.vertices[1].y);
+        ctx.lineTo(proj.vertices[2].x, proj.vertices[2].y);
+        ctx.lineTo(proj.vertices[3].x, proj.vertices[3].y);
         ctx.fill();
     })
 }
 
-function draw() {
-    ctx.clearRect(0, 0, DIMENSIONS.width, DIMENSIONS.height);
+var fps;
+var lastTime;
+
+function draw(time) {
+    
+    // performance
+    let delta = (time - lastTime)/1000;
+    fps = 1/delta;
+    lastTime=time;
+
+    if(fps<60){
+        console.log('drop',fps,Date());
+    }
+    
+    
     ctx.fillStyle = '#000000'; 
     ctx.fillRect(0, 0, DIMENSIONS.width, DIMENSIONS.height);
     
+    ctx.font = "20px Arial";
+    ctx.fillStyle='white';
+    ctx.fillText('fps: ' + Math.round(fps),10,25);
+
     ships.forEach((ship)=>{
         drawShip(ship);
         drawProjectiles(ship);
