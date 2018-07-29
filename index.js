@@ -64,10 +64,23 @@ class Entity {
         })
     }
 
-    getProjections(entity) {
+    getSingleProjection(normal) {
+
+        let projections = this.vertices.map((vertex)=>{
+            return vertex.dotProduct(normal);
+        });
+        
+       return {
+            min: Math.min(...projections),
+            max: Math.max(...projections)
+        };
+
+    }
+
+    getOwnProjections() {
         //projections onto entity's normals
         let projectionExtremes = [];
-        entity.normals.forEach( (normal)=> {
+        this.normals.forEach( (normal)=> {
 
             let projections = this.vertices.map((vertex)=>{
                 return vertex.dotProduct(normal);
@@ -335,39 +348,32 @@ function isCollisionSAT (poly1, poly2) {
 
 
     //io.emit('normals', normals);
+
     // At this point we already have all normals and own projection extremes
     // all that's left is to get cross extremes and check for gaps
 
-    //poly1 normal1 all 
-    //poly2 normal2 all
-
-    //poly1 onto poly2's normals
-    let firstOntoSecond = poly1.getProjections(poly2);
-    //poly2 onto poly1's normals
-    let secondOntoFirst = poly2.getProjections(poly1);
-    //console.log(secondOntoFirst,poly1.projectionExtremes);
     
-
-
-
-
-    for( let i = 0; i< poly1.projectionExtremes.length; i++){
-        let projection = poly1.projectionExtremes[i];
-        if (secondOntoFirst[i].max < projection.min || projection.max < secondOntoFirst[i].min) {
+    // projections onto poly1's normals
+    for( let i = 0; i< poly1.normals.length; i++){
+        let projection1 = poly1.projectionExtremes[i]; 
+        let projection2 = poly2.getSingleProjection(poly1.normals[i]);
+        if (projection2.max < projection1.min || projection1.max < projection2.min) {
             // check for gap
             // if gap, no collision, return
             return false;
         }
     }
 
-    for( let i = 0; i< poly2.projectionExtremes.length; i++){
-        let projection = poly2.projectionExtremes[i];
-        if (firstOntoSecond[i].max < projection.min || projection.max < firstOntoSecond[i].min) {
+    // projections onto poly2's normals
+    for( let i = 0; i< poly2.normals.length; i++){
+        let projection2 = poly2.projectionExtremes[i]; 
+        let projection1 = poly1.getSingleProjection(poly2.normals[i]);
+        if (projection2.max < projection1.min || projection1.max < projection2.min) {
             // check for gap
             // if gap, no collision, return
             return false;
         }
-    };
+    }
 
     
     return true; 
@@ -398,7 +404,7 @@ function update(){
         
         // get ready for collision
         ship.calculateNormals();
-        ship.projectionExtremes = ship.getProjections(ship);
+        ship.projectionExtremes = ship.getOwnProjections();
 
         if(ship.shooting && ship.canShoot) shoot(ship);
         ship.projectiles.forEach((proj)=>{
@@ -412,7 +418,7 @@ function update(){
 
                 // get ready for collision
                 proj.calculateNormals();
-                proj.projectionExtremes = proj.getProjections(proj);
+                proj.projectionExtremes = proj.getOwnProjections();
             }
             
         });
