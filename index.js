@@ -1,237 +1,17 @@
 const express = require('express');
 const socket = require('socket.io');
+const util = require('util')
+const Vector = require('./classes/vector');
 const {
     performance,
     PerformanceObserver
   } = require('perf_hooks');
 
 
-class Vector {
-    
-    constructor (x,y){
-        this.x=x;
-        this.y=y;
-    }
-
-    rotate(angleRadians) {
-        let sin = Math.sin(angleRadians);
-        let cos = Math.cos(angleRadians);
-        let xCopy = this.x;
-        this.x = xCopy * cos - this.y * sin;
-        this.y = xCopy * sin + this.y * cos;
-    }
-
-    dotProduct(vector) {
-        //console.log('dot: ', this.x, vector.x,this.y,vector.y );
-        return this.x * vector.x + this.y * vector.y;
-    }
-
-    add(vector) {
-        return new Vector(
-            this.x + vector.x,
-            this.y + vector.y
-        );
-    }
-
-    subtract(vector) {
-        return new Vector(
-            this.x - vector.x,
-            this.y - vector.y
-        );
-    }
-
-    normal() {
-        return new Vector(
-            
-            -this.y,
-            this.x
-        );
-    }
+let packs = {
 }
 
-class Entity {
-
-    constructor() {
-        this.normals = [];
-        this.projectionExtremes = [];
-    }
-
-    calculateNormals() {
-        // get the line vector throuhgh arr[x+1] - arr[x]
-        // then its normal vector
-        this.normals = this.vertices.map((vertex,index,array) => {
-            return array[ index + 1 > array.length - 1 ? 0 : index + 1 ].subtract(vertex).normal()
-        })
-    }
-
-    getSingleProjection(normal) {
-
-        let projections = this.vertices.map((vertex)=>{
-            return vertex.dotProduct(normal);
-        });
-        
-       return {
-            min: Math.min(...projections),
-            max: Math.max(...projections)
-        };
-
-    }
-
-    getOwnProjections() {
-        //projections onto entity's normals
-        let projectionExtremes = [];
-        this.normals.forEach( (normal)=> {
-
-            let projections = this.vertices.map((vertex)=>{
-                return vertex.dotProduct(normal);
-            });
-            
-            projectionExtremes.push({
-                min: Math.min(...projections),
-                max: Math.max(...projections)
-            })
-
-        } )
-        return projectionExtremes;
-    }
-   
-}
-
-
-class Projectile extends Entity {
-
-    /*     
-            p1          p4 
-    
-            p2          p3
-    */      
-
-    constructor(p1,p2,p3,p4,angleRadians,ship){
-        super();
-        this.vertices=[
-            p1,p2,p3,p4
-        ];
-        this.angleRadians = angleRadians;
-        this.stop=false;
-        this.ship=ship;
-        this.timeout = setTimeout(()=>{
-            //console.log('time');
-            this.delete(ship);
-        },5000);
-    }
-
-    // @Override not to include opposite normals
-    calculateNormals() {
-        this.normals = [];
-        this.normals.push(this.vertices[1].subtract(this.vertices[0]).normal());
-        this.normals.push(this.vertices[2].subtract(this.vertices[1]).normal());
-    }
-
-
-    delete(ship) {
-        ship.projectiles.splice(
-            ship.projectiles.indexOf(this),1
-        );
-        clearTimeout(this.timeout);
-    }
-
-
-}
-
-const ships=[];
-
-function getRandomIntInclusive(min, max) {
-    min = Math.ceil(min);
-    max = Math.floor(max);
-    return Math.floor(Math.random() * (max - min + 1)) + min; //The maximum is inclusive and the minimum is inclusive 
-  }
-
-function isBrightEnough (color) {
-    return (color[0] * 299 + color[1] * 587 + color[2] * 114) / 1000 > 123;
-}
-
-function randomVisibleColor() {
-    color = [0,0,0];
-    while(!isBrightEnough(color)){
-        color[0] = getRandomIntInclusive(0,255);
-        color[1] = getRandomIntInclusive(0,255);
-        color[2] = getRandomIntInclusive(0,255);
-    }
-    return `rgb(${color[0]},${color[1]},${color[2]})`;
-}
-
-function randomSpawnPoint() {
-    let x, y;
-    do {
-       x = getRandomIntInclusive(0+40,599-40);
-       y = getRandomIntInclusive(0+25,599-25);
-        
-    }
-    while(ships.some((ship)=>{
-        return Math.pow(ship.center.x - x,2) + 
-        Math.pow(ship.center.y - y,2) < 
-        Math.pow(100,2);
-    }))
-    return new Vector(x,y);
-
-}
-class Ship extends Entity{
-
-    constructor(socket){
-        super();
-        this.vertices= [
-            new Vector(0,0),
-            new Vector(0,0),
-            new Vector(0,0)
-            
-        ];
-        this.center= randomSpawnPoint();
-        this.angleRadians=0;
-        this.dir= {
-            up: false,
-            left: false,
-            down: false,
-            right: false
-        };
-        this.mousePos= {
-            x:0,
-            y:0
-        };
-        this.shooting= false;
-        this.canShoot= true;
-        this.projectiles=  [];
-        this.hp= 100;
-        this.color= randomVisibleColor();
-        this.socket= socket;
-        
-    }
-
-
-
-    damage() {
-        this.hp-=20;
-        this.socket.emit('hp',this.hp);
-        if (this.hp<=0) {
-            this.delete();
-            this.socket.emit('dead');
-        }
-        
-        
-    }
-
-    delete() {
-        if ( ships.indexOf(this) > -1 ) {
-            ships.splice(
-                ships.indexOf(this),1
-            );
-        }
-    }
-
-}
-
-
-
-
+const Ship = require('./classes/ship')(packs);
 
 
 
@@ -248,12 +28,14 @@ app.use(express.static('public'));
 
 
 // Socket setup
+const DEBUG = false;
+
 var io = socket(server,{transports:['websocket']});
 
 io.on('connection', (socket)=>{
     console.log(socket.id + " connected!");
     let ship = new Ship(socket);
-    ships.push(ship);
+    Ship.ships.push(ship);
     socket.on('move', (move)=>{
        
         switch (move) {
@@ -292,7 +74,29 @@ io.on('connection', (socket)=>{
 
     socket.on('disconnect', () => {
         ship.delete();
-      }); 
+      });
+    socket.on('chatMessage', (message)=>{
+        var playerName = socket.id;
+        io.emit('chatMessage',playerName + ': ' + message)
+    });
+    socket.on('eval', (command)=>{
+        if(!DEBUG) {
+            return;
+        }
+        var res = eval(command);
+        socket.emit('eval',util.inspect(res,{depth: 5}));
+    });
+
+    // Each ship comes with its projectiles
+    // No need to send them separately
+    let initPack = {
+        ships: Ship.ships.map((ship) => {
+            return ship.getInitPack();
+        })
+        
+    };
+    socket.emit('init', initPack)
+
 }) 
 
 function calculateAngle(ship) {
@@ -301,47 +105,10 @@ function calculateAngle(ship) {
 
 
 
-function getPoints(ship) {
-    let medianToCentroid = 45/3;
-    let p1Vect = new Vector(-medianToCentroid,-15);
-    let p2Vect = new Vector(-medianToCentroid, 15);
-    let p3Vect = new Vector(2*medianToCentroid, 0);
-    p1Vect.rotate(ship.angleRadians);
-    p2Vect.rotate(ship.angleRadians);
-    p3Vect.rotate(ship.angleRadians);
-    ship.vertices[0] = ship.center.add(p1Vect);
-    ship.vertices[1] = ship.center.add(p2Vect);
-    ship.vertices[2] = ship.center.add(p3Vect);
-}
 
 
 
-function shoot(ship){
-    let distVector = new Vector(45/3*2 + 20, 0);
-        distVector.rotate(ship.angleRadians);
-      
-        let p1Vect = new Vector(-18, -4),
-            p2Vect = new Vector(-18, 4),
-            p3Vect = new Vector(18, 4),
-            p4Vect = new Vector(18,-4);
-        p1Vect.rotate(ship.angleRadians);
-        p2Vect.rotate(ship.angleRadians);
-        p3Vect.rotate(ship.angleRadians);
-        p4Vect.rotate(ship.angleRadians);
-        let projCenter = ship.center.add(distVector);
-        let p1 = projCenter.add(p1Vect),
-            p2 = projCenter.add(p2Vect),
-            p3 = projCenter.add(p3Vect),
-            p4 = projCenter.add(p4Vect),
-            proj = new Projectile(p1,p2,p3,p4,ship.angleRadians,ship)
-        ship.projectiles.push(proj);
-       
-        
-        ship.canShoot = false;
-        setTimeout(()=>{
-            ship.canShoot=true
-        }, 300);
-}
+
 
 function isCollisionSAT (poly1, poly2) {
     //console.log('new col');
@@ -378,36 +145,61 @@ function isCollisionSAT (poly1, poly2) {
     
     return true; 
 }
-
+// can be changed outside of update, initialize here and reset on update end
+packs.initPack = {
+    ships: [],
+    projectiles:[]
+}
+packs.removePack = {
+    ships: [],
+    projectiles: []
+}; 
 function update(){
+    
+    packs.updatePack= [];
     
     
 
     // movement and shooting
-    ships.forEach( (ship) => {
+    Ship.ships.forEach( (ship) => {
+        let shouldSend = false;
+        let moved = false;
+
         if (ship.dir.up) {
             ship.center.y--;
+            moved = true;
         }
         if (ship.dir.left) {
             ship.center.x--;
+            moved = true;
         }
         if (ship.dir.down) {
             ship.center.y++;
+            moved = true;
         }
         if (ship.dir.right) {
             ship.center.x++;
+            moved = true;
         }
     
-        
+        let prevAngle = ship.angleRadians;
         calculateAngle(ship);
-        getPoints(ship);
+        if(ship.angleRadians != prevAngle) {
+            moved = true;
+        }
+        
+        if(moved) {
+            ship.getPoints();
+            shouldSend = true;
+        }
         
         // get ready for collision
         ship.calculateNormals();
         ship.projectionExtremes = ship.getOwnProjections();
-
-        if(ship.shooting && ship.canShoot) shoot(ship);
-        ship.projectiles.forEach((proj)=>{
+        if(ship.shooting && ship.canShoot) ship.shoot();
+        projPack = [];
+        for (let i in ship.projectiles) {
+            const proj = ship.projectiles[i];
             if (!proj.stop){
                 forwardVect = new Vector(3,0);
                 forwardVect.rotate(proj.angleRadians);
@@ -415,35 +207,50 @@ function update(){
                 proj.vertices[1] = proj.vertices[1].add(forwardVect);
                 proj.vertices[2] = proj.vertices[2].add(forwardVect);
                 proj.vertices[3] = proj.vertices[3].add(forwardVect);
-
+                projPack.push({
+                    id: proj.id,
+                    vertices: proj.vertices
+                })
                 // get ready for collision
                 proj.calculateNormals();
                 proj.projectionExtremes = proj.getOwnProjections();
             }
-            
-        });
-
+        }
+        if(projPack.length > 0) {
+            shouldSend = true;
+        }
+        if (shouldSend) {
+            packs.updatePack.push({
+                id: ship.id,
+                vertices: moved?ship.vertices:null,
+                projectiles: projPack.length > 0 ? projPack : null  
+            })
+        }
+       
         
     })
 
     // collision detection
-    ships.forEach( (ship) => {
-        ship.projectiles.forEach((proj)=>{     
-            for(let i = 0; i<ships.length; i++){
-                let otherShip = ships[i];
+    Ship.ships.forEach( (ship) => {
+        
+        for (let i in ship.projectiles){
+            const proj = ship.projectiles[i];     
+            for(let i = 0; i<Ship.ships.length; i++){
+                let otherShip = Ship.ships[i];
                 if (isCollisionSAT(proj, otherShip)) {
                     //proj.stop = true; 
-                    proj.delete(ship);
+                    
                     otherShip.damage();
+                    proj.delete(ship);
                     break;
                 }
             }
-        })
+        }
     })
-    // not all data from ships should be sent
+    // not all data from Ship.ships should be sent
     // only take what's necessary
     let toSend = [];
-    ships.forEach((ship)=>{
+    /*Ship.ships.forEach((ship)=>{
         let sending = {
         vertices: ship.vertices,
         projectiles:ship.projectiles.map((proj)=>{
@@ -455,7 +262,31 @@ function update(){
 
 
     });
-    io.emit('update', toSend);
+    io.emit('update', toSend);*/
+    if(packs.removePack.ships.length > 0 || packs.removePack.projectiles.length > 0) {
+        //console.log('sent remove pack');
+        io.emit('remove',packs.removePack);
+        packs.removePack = {
+            ships: [],
+            projectiles: []
+        }; 
+    }
+
+    if(packs.initPack.ships.length > 0 || packs.initPack.projectiles.length > 0) {
+        //console.log('sent regular init');
+        io.emit('init',packs.initPack);
+        packs.initPack = {
+            ships: [],
+            projectiles:[]
+        }
+    }
+
+    if(packs.updatePack.length > 0) {
+        io.emit('update',packs.updatePack);
+    }
+
+    
+    
 }
 var imperfections = [];
 var previousTick = performance.now();
@@ -470,7 +301,7 @@ function gameLoop() {
    now = performance.now();
    var delta = (now - previousTick);
    var currUps = 1/delta;
-    
+   //actualTicks++;
    
    if (delta >= tickLength) {
     previousTick = now
@@ -479,7 +310,9 @@ function gameLoop() {
        console.log('avg ups', ups.reduce((a,b)=>{return a+=b}) / ups.length);
        ups=[];
     }
-       update();
+        update();
+        //console.log('ticks: ',actualTicks);
+        //actualTicks=0;
    }  
    
     if ( performance.now() - previousTick < tickLength-4 )
@@ -487,7 +320,7 @@ function gameLoop() {
     
     else {
         setImmediate(gameLoop);
-    }
+    } 
    
     
      
@@ -512,7 +345,7 @@ function gameLoop() {
 
 }
 
-setImmediate(gameLoop);
+gameLoop();
 
 server.listen( process.env.PORT || 4000, ()=>{
     console.log('Listening on port ' + (process.env.port || 4000) )

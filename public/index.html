@@ -6,10 +6,19 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Shooter</title>
     <script src="/socket.io/socket.io.js"></script>
-    
+    <link rel="stylesheet" href="style.css">
+   
 </head>
 <body>
-    <canvas width="600" height="600" id="game"></canvas>
+    <canvas tabindex="0" width="600" height="600" id="game"></canvas>
+    <div id="chat">
+        <div id="messages"></div>
+        <form id="form" action="">
+            <input id="input" type="text">
+        </form>
+    </div>
     <script src="/game.js"></script>
+
+    
 </body>
 </html>

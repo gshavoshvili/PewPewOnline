@@ -1,0 +1,24 @@
+* {
+    box-sizing: border-box;
+}
+
+body{
+    display:flex;
+    flex-direction:row;
+    justify-content: center;
+}
+#chat{
+    position: relative;
+    border: 1px solid black;
+    margin-left: 40px;
+    width:275px;
+}
+#chat #input {
+    position: absolute;
+    font-size: 18px;
+    padding:5px 3px;
+    bottom:0;
+    border-left: none;
+    border-right:none;
+    width:100%;
+}

@@ -1,19 +1,110 @@
 const socket = io('/', {transports: ['websocket']});
 const canvas = document.getElementById('game');
+canvas.focus();
 const ctx = canvas.getContext('2d');
+
+const chat = document.getElementById('chat');
+const chatMessages = document.querySelector('#chat #messages');
+const chatInput = document.querySelector('#chat #input');
+const chatForm = document.querySelector('#chat #form');
+
 const DIMENSIONS = {
     width: canvas.width,
     height: canvas.height
 }
 var DEBUG = false;
-let ships = [];
+let ships = {};
 let normals = [];
 
 let hp = 100;
 
-socket.on('update', (newShips)=>{
-    ships = newShips;
+class Ship {
+    constructor(initPack) {
+        this.id = initPack.id;
+        this.vertices = initPack.vertices;
+        this.projectiles = {};
+        this.color = initPack.color;
+        ships[this.id]=this;
+    }
+    
+    delete() {
+        delete ships[this.id];
+    }
+}
+
+class Projectile {
+    constructor(initPack) {
+        this.id = initPack.id;
+        
+        this.vertices = initPack.vertices;
+
+        this.ship = ships[initPack.shipId];
+        this.ship.projectiles[this.id] = this;
+    }
+
+    delete() {
+        delete this.ship.projectiles[this.id];
+    }
+}
+
+function escapeHtml(unsafe) {
+    return unsafe
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+ }
+
+socket.on('init', (pack) => {
+    console.log('init',pack)
+    if (pack.ships){
+        pack.ships.forEach((shipPack) => {
+            new Ship(shipPack);
+         })
+    }
+    
+    if (pack.projectiles){
+        pack.projectiles.forEach(projPack => {
+            new Projectile(projPack);
+        })
+    }
+    
+});
+socket.on('remove', (toRemove)=> {
+    console.log('remove', toRemove)
+    if (toRemove.ships){
+        toRemove.ships.forEach((id) => {
+            ships[id].delete();
+         })
+    }
+    
+    if (toRemove.projectiles){
+        toRemove.projectiles.forEach((proj) => {
+            ships[proj.shipId].projectiles[proj.id].delete();
+        })
+    }
 })
+socket.on('update', (diffs)=>{
+    console.log('diffs', diffs, Date())
+    diffs.forEach((diff)=>{
+        let ship = ships[diff.id];
+        if (ship) {
+            if (diff.vertices) {
+                ship.vertices = diff.vertices;
+            }
+            if (diff.projectiles) {
+                diff.projectiles.forEach((projChange)=>{
+                    let projectile = ship.projectiles[projChange.id];
+                    if(projectile) {
+                        projectile.vertices = projChange.vertices;
+                    }
+                })
+            }
+        } 
+    })
+});
+
 socket.on('normals', newNormals => {
     normals = newNormals;
     console.log('got normals')
@@ -21,7 +112,24 @@ socket.on('normals', newNormals => {
 socket.on('hp',(newHp)=>{
     hp = newHp;
 })
-document.addEventListener('keydown', (e)=>{
+socket.on('chatMessage', (message)=>{
+    chatMessages.innerHTML += '<div>' +  escapeHtml(message) + '</div>'
+});
+socket.on('eval', (result)=>{
+    console.log(result);
+})
+
+chatForm.onsubmit = (e) => {
+    e.preventDefault();
+    if (chatInput.value[0] === '/'){
+        socket.emit('eval', chatInput.value.slice(1));
+    }
+    else {
+        socket.emit('chatMessage', chatInput.value);
+    }
+    chatInput.value='';
+}
+canvas.addEventListener('keydown', (e)=>{
     console.log(e.code);
     switch (e.code) {
         case 'KeyW':  socket.emit('move', 'up');    break;
@@ -31,7 +139,7 @@ document.addEventListener('keydown', (e)=>{
     }
 });
 
-document.addEventListener('keyup', (e)=>{
+canvas.addEventListener('keyup', (e)=>{
     console.log(e.code);
     switch (e.code) {
         case 'KeyW':  socket.emit('moveStop', 'up');    break;
@@ -51,10 +159,12 @@ canvas.addEventListener('mousedown', (e)=>{
 canvas.addEventListener('mouseup', (e)=>{
     socket.emit('mouseup');
 });
+canvas.addEventListener('mouseleave', (e)=>{
+    socket.emit('mouseup');
+});
 
 
 function drawShip(ship){
-    
         ctx.fillStyle = ship.color;
         ctx.beginPath();
         ctx.moveTo(ship.vertices[0].x, ship.vertices[0].y);
@@ -66,7 +176,8 @@ function drawShip(ship){
 
 function drawProjectiles(ship){
     
-    ship.projectiles.forEach((proj)=>{
+    for (let i in ship.projectiles){
+        const proj = ship.projectiles[i];
         ctx.fillStyle=ship.color;
         ctx.beginPath();
         ctx.moveTo(proj.vertices[0].x, proj.vertices[0].y);
@@ -74,7 +185,7 @@ function drawProjectiles(ship){
         ctx.lineTo(proj.vertices[2].x, proj.vertices[2].y);
         ctx.lineTo(proj.vertices[3].x, proj.vertices[3].y);
         ctx.fill();
-    })
+    }
 }
 
 var fps;
@@ -99,10 +210,12 @@ function draw(time) {
     ctx.fillStyle='white';
     ctx.fillText('fps: ' + Math.round(fps),10,25);
 
-    ships.forEach((ship)=>{
+    for (let i in ships){
+        const ship = ships[i];
         drawShip(ship);
         drawProjectiles(ship);
-    })
+    }
+
     ctx.strokeStyle='#FFFFFF';
     if(DEBUG){
         normals.forEach((normal,index)=>{
@@ -128,3 +241,6 @@ function draw(time) {
 }
 
 window.requestAnimationFrame(draw);
+
+
+
