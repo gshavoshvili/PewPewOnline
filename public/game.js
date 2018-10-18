@@ -81,7 +81,10 @@ socket.on('remove', (toRemove)=> {
     
     if (toRemove.projectiles){
         toRemove.projectiles.forEach((proj) => {
-            ships[proj.shipId].projectiles[proj.id].delete();
+            if(ships[proj.shipId]){
+                ships[proj.shipId].projectiles[proj.id].delete();
+            }
+            
         })
     }
 })

@@ -28,7 +28,7 @@ app.use(express.static('public'));
 
 
 // Socket setup
-const DEBUG = false;
+const DEBUG = true;
 
 var io = socket(server,{transports:['websocket']});
 
@@ -296,31 +296,27 @@ var actualTicks = 0
 
 function gameLoop() {
   
-   //setTimeout(gameLoop,tickLength);
+   //
      
    now = performance.now();
    var delta = (now - previousTick);
    var currUps = 1/delta;
    //actualTicks++;
    
-   if (delta >= tickLength) {
-    previousTick = now
-    ups.push(currUps*1000);
-    if (ups.length === 600) {
-       console.log('avg ups', ups.reduce((a,b)=>{return a+=b}) / ups.length);
-       ups=[];
-    }
-        update();
-        //console.log('ticks: ',actualTicks);
-        //actualTicks=0;
-   }  
    
-    if ( performance.now() - previousTick < tickLength-4 )
-    {setTimeout(gameLoop);}
+ 
+previousTick = now
+ups.push(currUps*1000);
+if (ups.length === 600) {
+    console.log('avg ups', ups.reduce((a,b)=>{return a+=b}) / ups.length);
+    ups=[];
+}
+    update();
+    //console.log('ticks: ',actualTicks);
+    //actualTicks=0;
+   
+   
     
-    else {
-        setImmediate(gameLoop);
-    } 
    
     
      
@@ -345,7 +341,7 @@ function gameLoop() {
 
 }
 
-gameLoop();
+setInterval(gameLoop,tickLength);
 
 server.listen( process.env.PORT || 4000, ()=>{
     console.log('Listening on port ' + (process.env.port || 4000) )

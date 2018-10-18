@@ -83,12 +83,21 @@ class Ship extends Entity{
         );
     }
 
+    getProjectileInits() {
+        let inits = [];
+        for (let i in this.projectiles) {
+            let proj = this.projectiles[i];
+            inits.push(proj.getInitPack());
+        }
+        return inits;
+    }
+
     getInitPack() {
         
         return {
             id: this.id,
             vertices: this.vertices,
-            projectiles:this.projectiles,
+            projectiles:this.getProjectileInits(),
             color: this.color
         }
             
